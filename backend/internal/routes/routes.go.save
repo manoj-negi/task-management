@@ -1,0 +1,37 @@
+package routes
+
+import (
+	"database/sql"
+	"net/http"
+
+	"office-task-manager/backend/internal/handlers"
+)
+
+func New(db *sql.DB) http.Handler {
+	mux := http.NewServeMux()
+
+	// Health check endpoint
+	mux.HandleFunc("/api/health", handlers.Health(db))
+
+	// Authentication endpoint
+	authHandler := handlers.AuthHandler{DB: db}
+	mux.HandleFunc("/api/auth/login", authHandler.Login)
+
+	return mux
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

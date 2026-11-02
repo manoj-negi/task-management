@@ -1,0 +1,22 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Go build outputs
+/backend/office-task-manager
+/backend/*.out
+/backend/coverage.out
+/uploads/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# macOS
+.DS_Store
+
+# Editor settings
+.vscode/
+.idea/

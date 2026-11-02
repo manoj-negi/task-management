@@ -1,0 +1,24 @@
+export type TaskStatus = 'In progress' | 'In review' | 'To do' | 'Completed'
+export type Priority = 'Urgent' | 'High' | 'Medium' | 'Low'
+
+export type Task = {
+  id: string
+  title: string
+  project: string
+  projectColor: string
+  assignees: string[]
+  due: string
+  priority: Priority
+  status: TaskStatus
+}
+
+export type Project = {
+  name: string
+  code: string
+  color: string
+  progress: number
+  completed: number
+  total: number
+  members: string[]
+  due: string
+}

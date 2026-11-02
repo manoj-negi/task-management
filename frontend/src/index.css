@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #20243a;
+  background: #f7f8fc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+
+  /* Shared design tokens for the Office Task Manager UI */
+  --color-brand: #6257d9;
+  --color-brand-hover: #5145c6;
+  --color-brand-soft: #f0efff;
+  --color-ink: #20243a;
+  --color-muted: #747b91;
+  --color-subtle: #9aa1b4;
+  --color-border: #e7e9f2;
+  --color-surface: #ffffff;
+  --color-canvas: #f7f8fc;
+  --color-success: #16845b;
+  --color-success-soft: #e9f8f0;
+  --color-warning: #a86112;
+  --color-warning-soft: #fff5e8;
+  --color-danger: #b42335;
+  --color-danger-soft: #fff0f1;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-soft: 0 2px 8px rgb(26 32 64 / 4%);
+  --shadow-panel: 0 8px 28px rgb(26 32 64 / 6%);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--color-canvas);
+}
+
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+:focus-visible {
+  outline: 3px solid rgb(98 87 217 / 30%);
+  outline-offset: 2px;
+}
+
+::selection { color: #28215f; background: #e4e1ff; }
+
+#root { min-height: 100vh; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

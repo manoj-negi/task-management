@@ -1,0 +1,23 @@
+Office Task Manager - My Tasks / Admin Task Management Enhancement
+
+Files included:
+- backend/internal/handlers/task_management.go (new)
+- backend/internal/routes/routes.go
+- frontend/src/services/taskManagement.ts (new)
+- frontend/src/App.tsx
+
+Features:
+- Super Admin sees all workspace tasks on the My Tasks page, including unassigned tasks.
+- Super Admin can edit title, description, priority, due date, and assignees.
+- Assignee changes are validated against active employees who are active members of the task's existing project.
+- Super Admin can delete a task. Deletion is blocked when the task has subtasks; dependent activity, comments, reviews, and assignments are removed transactionally before the task record.
+- Adds a Changes requested filter.
+- Employee accounts do not see edit/delete controls.
+- Existing review endpoint remains available at POST /api/admin/tasks/{id}.
+- New routes: GET /api/admin/tasks/{id}/details, POST /api/admin/tasks/{id}/manage, POST /api/admin/tasks/{id}/delete.
+
+Notes:
+- Task project and workflow status are intentionally not editable from this form. Project changes could invalidate membership/assignment relationships, and status transitions should continue through the existing start/submit/review workflow.
+- Delete actions are permanent. Parent tasks with subtasks are protected from deletion.
+- No database migration is included; existing tables are reused.
+- Build/runtime integration must be verified in the user's local project and database.

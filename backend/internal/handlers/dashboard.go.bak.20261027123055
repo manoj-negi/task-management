@@ -1,0 +1,237 @@
+package handlers
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"office-task-manager/backend/internal/auth"
+)
+
+type dashboardQuerier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+type dashboardTask struct {
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Project      string   `json:"project"`
+	ProjectColor string   `json:"projectColor"`
+	Assignees    []string `json:"assignees"`
+	Due          string   `json:"due"`
+	Priority     string   `json:"priority"`
+	Status       string   `json:"status"`
+}
+
+type dashboardProject struct {
+	Name      string   `json:"name"`
+	Code      string   `json:"code"`
+	Color     string   `json:"color"`
+	Progress  int      `json:"progress"`
+	Completed int      `json:"completed"`
+	Total     int      `json:"total"`
+	Members   []string `json:"members"`
+	Due       string   `json:"due"`
+}
+
+func Dashboard(db dashboardQuerier) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		claims, ok := auth.ClaimsFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		tasks, err := loadDashboardTasks(db, r, claims.UserID, claims.Role)
+		if err != nil {
+			http.Error(w, "failed to load dashboard tasks", http.StatusInternalServerError)
+			return
+		}
+		projects, err := loadDashboardProjects(db, r, claims.UserID, claims.Role)
+		if err != nil {
+			http.Error(w, "failed to load dashboard projects", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tasks":    tasks,
+			"projects": projects,
+		})
+	}
+}
+
+func loadDashboardTasks(db dashboardQuerier, r *http.Request, userID, role string) ([]dashboardTask, error) {
+	query := `
+SELECT
+  t.id::text,
+  t.title,
+  COALESCE(p.name, 'Unassigned project'),
+  t.priority::text,
+  t.status::text,
+  t.due_at,
+  COALESCE(
+    json_agg(DISTINCT upper(left(u.full_name, 1) || split_part(u.full_name, ' ', 2)))
+      FILTER (WHERE u.id IS NOT NULL),
+    '[]'::json
+  )::text
+FROM tasks t
+LEFT JOIN projects p ON p.id = t.project_id
+LEFT JOIN task_assignees ta ON ta.task_id = t.id
+LEFT JOIN users u ON u.id = ta.user_id AND u.is_active = TRUE
+WHERE ($1 = 'super_admin' OR EXISTS (
+  SELECT 1 FROM task_assignees mine
+  WHERE mine.task_id = t.id AND mine.user_id::text = $2
+))
+GROUP BY t.id, p.name
+ORDER BY t.created_at DESC
+LIMIT 200`
+
+	rows, err := db.QueryContext(r.Context(), query, role, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]dashboardTask, 0)
+	for rows.Next() {
+		var task dashboardTask
+		var priority, status string
+		var due sql.NullTime
+		var assigneesJSON string
+		if err := rows.Scan(&task.ID, &task.Title, &task.Project, &priority, &status, &due, &assigneesJSON); err != nil {
+			return nil, err
+		}
+		task.Priority = displayPriority(priority)
+		task.Status = displayStatus(status)
+		task.ProjectColor = projectColor(task.Project)
+		task.Assignees = []string{}
+		if err := json.Unmarshal([]byte(assigneesJSON), &task.Assignees); err != nil {
+			task.Assignees = []string{}
+		}
+		if due.Valid {
+			task.Due = due.Time.Format("Jan 2")
+		} else {
+			task.Due = "No due date"
+		}
+		result = append(result, task)
+	}
+	return result, rows.Err()
+}
+
+func loadDashboardProjects(db dashboardQuerier, r *http.Request, userID, role string) ([]dashboardProject, error) {
+	query := `
+SELECT
+  p.name,
+  COALESCE(to_char(p.due_date, 'Mon DD'), 'No due date'),
+  COUNT(DISTINCT t.id)::int,
+  COUNT(DISTINCT t.id) FILTER (WHERE t.status = 'approved')::int,
+  COALESCE(
+    json_agg(DISTINCT upper(left(u.full_name, 1) || split_part(u.full_name, ' ', 2)))
+      FILTER (WHERE u.id IS NOT NULL),
+    '[]'::json
+  )::text
+FROM projects p
+LEFT JOIN tasks t ON t.project_id = p.id
+LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.removed_at IS NULL
+LEFT JOIN users u ON u.id = pm.user_id AND u.is_active = TRUE
+WHERE ($1 = 'super_admin' OR EXISTS (
+  SELECT 1 FROM project_members mine
+  WHERE mine.project_id = p.id AND mine.user_id::text = $2 AND mine.removed_at IS NULL
+))
+GROUP BY p.id, p.name, p.due_date
+ORDER BY p.created_at DESC
+LIMIT 100`
+
+	rows, err := db.QueryContext(r.Context(), query, role, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]dashboardProject, 0)
+	for rows.Next() {
+		var project dashboardProject
+		var membersJSON string
+		if err := rows.Scan(&project.Name, &project.Due, &project.Total, &project.Completed, &membersJSON); err != nil {
+			return nil, err
+		}
+		project.Code = projectCode(project.Name)
+		project.Color = projectColor(project.Name)
+		project.Members = []string{}
+		if err := json.Unmarshal([]byte(membersJSON), &project.Members); err != nil {
+			project.Members = []string{}
+		}
+		if project.Total > 0 {
+			project.Progress = int(float64(project.Completed) / float64(project.Total) * 100)
+		}
+		result = append(result, project)
+	}
+	return result, rows.Err()
+}
+
+func displayPriority(value string) string {
+	switch strings.ToLower(value) {
+	case "urgent":
+		return "Urgent"
+	case "high":
+		return "High"
+	case "low":
+		return "Low"
+	default:
+		return "Medium"
+	}
+}
+
+func displayStatus(value string) string {
+	switch strings.ToLower(value) {
+	case "in_progress":
+		return "In progress"
+	case "in_review":
+		return "In review"
+	case "approved":
+		return "Completed"
+	default:
+		return "To do"
+	}
+}
+
+func projectCode(name string) string {
+	words := strings.Fields(name)
+	if len(words) == 0 {
+		return "PRJ"
+	}
+	code := ""
+	for _, word := range words {
+		if len(code) >= 3 {
+			break
+		}
+		code += strings.ToUpper(string([]rune(word)[0]))
+	}
+	return code
+}
+
+func projectColor(name string) string {
+	switch strings.ToLower(name) {
+	case "website revamp":
+		return "#7C6CF2"
+	case "internal task manager":
+		return "#0EA5A4"
+	case "cloud infrastructure":
+		return "#F59E0B"
+	default:
+		return "#64748B"
+	}
+}
+
+// Keep this reference so time remains part of the dashboard's supported date handling.
+var _ = time.RFC3339

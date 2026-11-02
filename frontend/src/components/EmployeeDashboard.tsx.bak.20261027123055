@@ -1,0 +1,89 @@
+import { useEffect, useMemo, useState } from "react"
+import { BriefcaseBusiness, CalendarDays, CheckCircle2, CircleAlert, ClipboardList, FolderKanban, ListTodo, RefreshCw } from "lucide-react"
+import { fetchDashboard } from "../services/dashboard"
+import type { Project, Task } from "../types/task.types"
+import type { AuthUser } from "../services/auth"
+
+type Props = { user: AuthUser }
+const card: React.CSSProperties = { background: "#fff", border: "1px solid #e7eaf0", borderRadius: 16, padding: 18, minWidth: 0 }
+const muted: React.CSSProperties = { color: "#697386", fontSize: 13 }
+const button: React.CSSProperties = { border: "1px solid #dfe3eb", borderRadius: 10, padding: "9px 12px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, color: "#202939", fontWeight: 600 }
+
+export default function EmployeeDashboard({ user }: Props) {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [filter, setFilter] = useState("All")
+
+  async function load() {
+    const token = sessionStorage.getItem("office_task_manager_token")
+    if (!token) { setError("Please sign in again."); setLoading(false); return }
+    setLoading(true); setError("")
+    try {
+      const data = await fetchDashboard(token)
+      setTasks(data.tasks); setProjects(data.projects)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load your work.")
+    } finally { setLoading(false) }
+  }
+  useEffect(() => { void load() }, [])
+  const visibleTasks = useMemo(() => {
+    if (filter === "All") return tasks
+    if (filter === "Due soon") return tasks.filter(t => t.due !== "No due date")
+    return tasks.filter(t => t.status === filter)
+  }, [tasks, filter])
+  const inProgress = tasks.filter(t => t.status === "In progress").length
+  const inReview = tasks.filter(t => t.status === "In review").length
+  const completed = tasks.filter(t => t.status === "Completed").length
+
+  return <main style={{ minHeight: "calc(100vh - 48px)", background: "#f6f7fb", color: "#182230", padding: "28px clamp(16px, 4vw, 44px) 48px" }}>
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 28 }}>
+        <div><div style={{ ...muted, letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase" }}>Employee workspace</div>
+          <h1 style={{ margin: "8px 0 6px", fontSize: "clamp(25px, 4vw, 34px)", letterSpacing: -1 }}>Welcome, {user.full_name.split(" ")[0]}</h1>
+          <p style={{ margin: 0, ...muted }}>Here’s an overview of the work assigned to you.</p></div>
+        <button style={button} onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Refresh</button>
+      </header>
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))", gap: 14, marginBottom: 26 }}>
+        {[
+          { label: "My tasks", value: tasks.length, icon: ClipboardList, color: "#4f46e5" },
+          { label: "In progress", value: inProgress, icon: ListTodo, color: "#2563eb" },
+          { label: "In review", value: inReview, icon: CircleAlert, color: "#b7791f" },
+          { label: "Completed", value: completed, icon: CheckCircle2, color: "#15803d" },
+        ].map(item => { const Icon = item.icon; return <div key={item.label} style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={muted}>{item.label}</span><Icon size={19} color={item.color} /></div>
+          <div style={{ fontSize: 30, fontWeight: 750, marginTop: 12 }}>{loading ? "—" : item.value}</div>
+        </div> })}
+      </section>
+      {error && <div role="alert" style={{ ...card, borderColor: "#fecaca", color: "#b91c1c", marginBottom: 18 }}>{error}</div>}
+      <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.7fr) minmax(260px, 1fr)", gap: 18, alignItems: "start" }}>
+        <div style={card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
+            <div><h2 style={{ margin: 0, fontSize: 19 }}>My tasks</h2><p style={{ ...muted, margin: "5px 0 0" }}>Tasks assigned to your account</p></div>
+            <select aria-label="Filter tasks" value={filter} onChange={e => setFilter(e.target.value)} style={{ border: "1px solid #dfe3eb", borderRadius: 9, padding: 9, background: "#fff" }}>
+              <option>All</option><option>To do</option><option>In progress</option><option>In review</option><option>Completed</option><option>Due soon</option>
+            </select>
+          </div>
+          {loading ? <p style={muted}>Loading your tasks…</p> : visibleTasks.length === 0 ? <div style={{ textAlign: "center", padding: "30px 12px" }}><ClipboardList size={28} color="#9aa3b2" /><p style={{ marginBottom: 4, fontWeight: 650 }}>No tasks here yet</p><p style={muted}>Assigned work will appear here.</p></div> : <div style={{ display: "grid", gap: 10 }}>
+            {visibleTasks.map((task: Task) => <article key={task.id} style={{ border: "1px solid #edf0f5", borderRadius: 12, padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}><div style={{ minWidth: 0 }}><h3 style={{ margin: "0 0 5px", fontSize: 15 }}>{task.title}</h3><div style={muted}>{task.project}</div></div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "5px 8px", borderRadius: 20, background: task.status === "Completed" ? "#dcfce7" : task.status === "In review" ? "#fef3c7" : "#e8efff", color: task.status === "Completed" ? "#166534" : task.status === "In review" ? "#92400e" : "#1d4ed8", whiteSpace: "nowrap" }}>{task.status}</span></div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 13, ...muted }}><span>Priority: <strong style={{ color: "#273449" }}>{task.priority}</strong></span><span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><CalendarDays size={13} /> {task.due}</span></div>
+            </article>)}
+          </div>}
+        </div>
+        <aside style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}><FolderKanban size={19} color="#4f46e5" /><h2 style={{ margin: 0, fontSize: 19 }}>My projects</h2></div>
+          {loading ? <p style={muted}>Loading projects…</p> : projects.length === 0 ? <p style={muted}>You are not currently a member of any projects.</p> : <div style={{ display: "grid", gap: 12 }}>
+            {projects.map((project: Project) => <div key={project.name} style={{ border: "1px solid #edf0f5", borderRadius: 12, padding: 13 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "start" }}><BriefcaseBusiness size={16} color="#64748b" /><div style={{ flex: 1 }}><div style={{ fontWeight: 650, fontSize: 14 }}>{project.name}</div><div style={{ ...muted, marginTop: 4 }}>{project.completed} of {project.total} tasks approved</div></div></div>
+              <div style={{ height: 6, background: "#edf0f5", borderRadius: 9, marginTop: 12, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.max(0, Math.min(100, project.progress))}%`, background: "#6366f1", borderRadius: 9 }} /></div>
+            </div>)}
+          </div>}
+        </aside>
+      </section>
+      <p style={{ ...muted, marginTop: 20 }}>Signed in as {user.email}. This workspace shows data returned for your account by the authenticated API.</p>
+    </div>
+  </main>
+}

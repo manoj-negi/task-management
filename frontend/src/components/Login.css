@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+.login-page{min-height:100vh;display:grid;grid-template-columns:minmax(0,.95fr) minmax(420px,1.05fr);background:#fff;color:#252536;font-family:'DM Sans',sans-serif}
+.login-visual{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:100vh;overflow:hidden;padding:42px clamp(28px,5vw,76px) 32px;color:#fff;background:radial-gradient(ellipse at 85% 75%,#40339c 0,transparent 45%),linear-gradient(145deg,#211b4d 0%,#33266f 54%,#5142a0 100%)}
+.login-brand,.login-mobile-brand{position:relative;z-index:1;display:flex;align-items:center;gap:11px;font:800 23px/1 'Manrope',sans-serif;letter-spacing:-1px}
+.login-brand-mark{width:38px;height:38px;display:grid;place-items:center;border:1px solid #ffffff38;border-radius:12px;color:white;background:#ffffff1a}
+.login-brand-period{color:#a99cff}
+.login-visual-copy{position:relative;z-index:1;max-width:520px;margin:auto 0;padding:70px 0}
+.login-eyebrow,.login-form-eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:10px;font-weight:700;letter-spacing:1.7px}
+.login-eyebrow{color:#c4baff}.login-eyebrow>span{width:7px;height:7px;border-radius:50%;background:#a9f0ce;box-shadow:0 0 0 4px #a9f0ce20}
+.login-visual-copy h1{margin:24px 0 18px;font:800 clamp(38px,4.3vw,62px)/1.13 'Manrope',sans-serif;letter-spacing:-2.4px}
+.login-visual-copy p{max-width:400px;margin:0;color:#d0cbed;font-size:14px;line-height:1.9}
+.login-visual-footer{position:relative;z-index:1;display:flex;align-items:center;gap:9px;color:#d4cff3;font-size:11px}
+.login-orb{position:absolute;border:1px solid #ffffff12;border-radius:50%;pointer-events:none}.login-orb-one{width:380px;height:380px;right:-200px;top:10%;box-shadow:0 0 0 42px #ffffff05,0 0 0 84px #ffffff04}.login-orb-two{width:280px;height:280px;right:10%;bottom:-210px;box-shadow:0 0 0 35px #ffffff05,0 0 0 70px #ffffff04}
+.login-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:54px 32px 24px}
+.login-form-wrap{width:min(100%,390px);margin:auto 0}.login-form-eyebrow{color:#7666dc}
+.login-form-wrap h2{margin:13px 0 9px;color:#28273a;font:800 29px/1.25 'Manrope',sans-serif;letter-spacing:-1px}
+.login-form-subtitle{margin:0;color:#8d8da0;font-size:12px;line-height:1.7}
+.login-form{display:flex;flex-direction:column;gap:19px;margin-top:32px}
+.login-form>label{display:flex;flex-direction:column;gap:9px;color:#4e4d62;font-size:11px;font-weight:700}
+.login-form input{width:100%;height:47px;padding:0 13px;border:1px solid #e7e7f0;border-radius:9px;outline:none;color:#37364b;background:#fff;font-size:12px;transition:border-color .15s,box-shadow .15s}
+.login-form input::placeholder{color:#b0b0bf}.login-form input:focus{border-color:#9588f0;box-shadow:0 0 0 3px #7663e815}
+.login-password-wrap{position:relative;display:block}.login-password-wrap input{padding-right:46px}
+.login-password-toggle{position:absolute;top:7px;right:7px;width:33px;height:33px;display:grid;place-items:center;border:0;border-radius:7px;color:#9291a4;background:transparent}
+.login-password-toggle:hover{color:#6856db;background:#f6f4ff}
+.login-submit{width:100%;min-height:47px;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:3px;border:1px solid #6c5ae6;border-radius:9px;color:white;background:#6c5ae6;box-shadow:0 5px 12px #6c5ae626;font-size:12px;font-weight:700;transition:background .15s,transform .15s}
+.login-submit:hover:not(:disabled){background:#5947d3}.login-submit:active:not(:disabled){transform:translateY(1px)}.login-submit:disabled{cursor:wait;opacity:.7}
+.login-error{padding:11px 12px;border:1px solid #f4cece;border-radius:8px;color:#a63434;background:#fff4f4;font-size:11px;line-height:1.5}
+.login-security-note{display:flex;align-items:flex-start;justify-content:center;gap:7px;margin-top:25px;color:#a0a0b0;font-size:10px;line-height:1.6;text-align:center}.login-security-note svg{flex:0 0 auto;margin-top:1px;color:#8d83d9}
+.login-copyright{margin:35px 0 0;color:#a4a4b2;font-size:9px;text-align:center}.login-mobile-brand{display:none}
+.auth-session-bar{position:fixed;top:9px;right:12px;z-index:100;display:flex;align-items:center;gap:13px;padding:6px 8px 6px 10px;border:1px solid #e9e7f4;border-radius:9px;background:#fff;box-shadow:0 3px 15px #2525360b;font-size:10px;color:#77778c}
+.auth-session-bar span{display:flex;align-items:center;gap:6px}.auth-session-bar span svg{color:#5aaf86}.auth-session-bar strong{color:#45445a}
+.auth-session-bar button{padding:6px 8px;border:0;border-radius:6px;color:#6553d5;background:#f3f1ff;font-size:10px;font-weight:700}.auth-session-bar button:hover{background:#e9e5ff}
+@media(max-width:800px){.login-page{grid-template-columns:1fr}.login-visual{display:none}.login-panel{min-height:100vh;padding:28px 24px 20px}.login-mobile-brand{display:flex;margin-bottom:48px;font-size:21px}.login-mobile-brand .login-brand-mark{color:#6c5ae6;border-color:#e8e3ff;background:#f1eeff}.login-form-wrap h2{font-size:26px}}
+@media(max-width:420px){.login-panel{padding-right:20px;padding-left:20px}.login-form-wrap h2{font-size:24px}.auth-session-bar{top:5px;right:5px}}
+
+/* Keep login guidance and form labels comfortable to read. */
+.login-eyebrow,.login-form-eyebrow{font-size:12px}
+.login-visual-copy p{font-size:16px}
+.login-visual-footer{font-size:13px}
+.login-form-subtitle{font-size:14px}
+.login-form>label{font-size:14px}
+.login-form input{font-size:15px}
+.login-submit{font-size:15px}
+.login-error{font-size:14px}
+.login-security-note{font-size:13px}
+.login-copyright{font-size:12px}
+.auth-session-bar,.auth-session-bar button{font-size:13px}
+
+/* Match the workspace's richer violet brand. */
+.login-visual{background:radial-gradient(ellipse at 80% 70%,#7052e7 0,transparent 44%),radial-gradient(ellipse at 10% 5%,#5640aa 0,transparent 42%),linear-gradient(145deg,#21183e 0%,#34245f 52%,#4f368f 100%)}
+.login-brand-mark{background:linear-gradient(145deg,#ffffff2b,#ffffff0d);box-shadow:0 8px 22px #120c343d}
+.login-brand-period{color:#c4a8ff}
+.login-eyebrow{color:#d7caff}
+.login-eyebrow>span{background:#8ee0bc;box-shadow:0 0 0 4px #8ee0bc22}
+.login-form-eyebrow{color:#694bd4}
+.login-form input:focus{border-color:#9075e8;box-shadow:0 0 0 4px #7659e91c}
+.login-password-toggle:hover{color:#563ecb;background:#f2eeff}
+.login-security-note svg{color:#755bdc}
+.auth-session-bar button{color:#563ecb;background:#f0ebff}
