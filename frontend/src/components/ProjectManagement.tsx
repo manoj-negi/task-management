@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Archive, ArrowLeft, FolderPlus, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Archive, ArrowLeft, CalendarDays, FolderPlus, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
 import { getCurrentUser } from '../services/auth'
 import PaginationControls from './PaginationControls'
+import { PriorityLabel, StatusBadge } from './TaskUI'
+import type { Priority, TaskStatus } from '../types/task.types'
 import {
-  addProjectMember, archiveProject, deleteProject, fetchActiveEmployees, fetchProjectMembers,
+  addProjectMember, archiveProject, deleteProject, fetchActiveEmployees, fetchProjectMembers, fetchProjectTasks,
   fetchProjects, removeProjectMember, saveProject,
-  type ManagedProject, type ProjectMember,
+  type ManagedProject, type ProjectMember, type ProjectTask,
 } from '../services/projects'
 
 type Employee = { id: string; full_name: string; email: string; is_active: boolean; role: string }
 const emptyForm = { name: '', description: '', status: 'planned', startDate: '', dueDate: '' }
 
-export default function ProjectManagement({ onChanged, createRequest }: { onChanged: () => void; createRequest?: number }) {
+export default function ProjectManagement({ onChanged, createRequest, taskRefreshRequest, initialSelectedProjectId, onSelectedProjectChange, onOpenTask, onCreateTask }: { onChanged: () => void; createRequest?: number; taskRefreshRequest?: number; initialSelectedProjectId?: string; onSelectedProjectChange?: (id: string) => void; onOpenTask?: (taskId: string) => void; onCreateTask?: (projectName: string) => void }) {
   const [projects, setProjects] = useState<ManagedProject[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
+  const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([])
+  const [projectTaskTotal, setProjectTaskTotal] = useState(0)
+  const [projectTasksLoading, setProjectTasksLoading] = useState(false)
+  const [projectTasksError, setProjectTasksError] = useState('')
   const [selected, setSelected] = useState('')
   const [showProjectDetails, setShowProjectDetails] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -29,6 +35,8 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
   const [notice, setNotice] = useState('')
   const [projectPage, setProjectPage] = useState(1)
   const [memberPage, setMemberPage] = useState(1)
+  const [projectTaskPage, setProjectTaskPage] = useState(1)
+  const initialProjectId = useRef(initialSelectedProjectId || '')
 
   const refresh = useCallback(async (preferredId?: string) => {
     setLoading(true)
@@ -38,10 +46,21 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
       setIsAdmin(user.role === 'super_admin')
       const nextId = preferredId || ''
       setSelected(nextId)
+      setShowProjectDetails(Boolean(nextId))
       const activeEmployees = user.role === 'super_admin' ? await fetchActiveEmployees() : []
       setEmployees(activeEmployees)
-      if (nextId) setMembers(await fetchProjectMembers(nextId))
-      else setMembers([])
+      if (nextId) {
+        const [nextMembers, taskPage] = await Promise.all([fetchProjectMembers(nextId), fetchProjectTasks(nextId)])
+        setMembers(nextMembers)
+        setProjectTasks(taskPage.tasks)
+        setProjectTaskTotal(taskPage.total)
+        setProjectTaskPage(1)
+      } else {
+        setMembers([])
+        setProjectTasks([])
+        setProjectTaskTotal(0)
+        setProjectTaskPage(1)
+      }
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load projects.')
@@ -50,15 +69,43 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
     }
   }, [])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { void refresh(initialProjectId.current) }, [refresh])
 
   const chooseProject = async (id: string) => {
     setSelected(id)
+    onSelectedProjectChange?.(id)
     setMemberPage(1)
+    setProjectTaskPage(1)
+    setProjectTasksLoading(true)
+    setProjectTasksError('')
     setShowProjectDetails(true)
     setError('')
-    try { setMembers(id ? await fetchProjectMembers(id) : []) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Could not load members.') }
+    try {
+      const [nextMembers, taskPage] = await Promise.all([fetchProjectMembers(id), fetchProjectTasks(id)])
+      setMembers(nextMembers)
+      setProjectTasks(taskPage.tasks)
+      setProjectTaskTotal(taskPage.total)
+    } catch (e) {
+      setProjectTasksError(e instanceof Error ? e.message : 'Could not load project tasks.')
+    } finally {
+      setProjectTasksLoading(false)
+    }
+  }
+
+  const changeProjectTaskPage = async (page: number) => {
+    if (!selected) return
+    setProjectTaskPage(page)
+    setProjectTasksLoading(true)
+    setProjectTasksError('')
+    try {
+      const data = await fetchProjectTasks(selected, page)
+      setProjectTasks(data.tasks)
+      setProjectTaskTotal(data.total)
+    } catch (e) {
+      setProjectTasksError(e instanceof Error ? e.message : 'Could not load project tasks.')
+    } finally {
+      setProjectTasksLoading(false)
+    }
   }
 
   const startCreate = useCallback(() => {
@@ -67,14 +114,32 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
     setSelectedMemberIds([])
     setShowProjectDetails(false)
     setSelected('')
+    onSelectedProjectChange?.('')
     setShowForm(true)
     setError('')
     setNotice('')
-  }, [])
+  }, [onSelectedProjectChange])
 
   useEffect(() => {
     if (createRequest && isAdmin) startCreate()
   }, [createRequest, isAdmin, startCreate])
+
+  useEffect(() => {
+    if (!taskRefreshRequest || !selected) return
+    let cancelled = false
+    setProjectTasksLoading(true)
+    setProjectTasksError('')
+    fetchProjectTasks(selected, projectTaskPage).then(data => {
+      if (cancelled) return
+      setProjectTasks(data.tasks)
+      setProjectTaskTotal(data.total)
+    }).catch(e => {
+      if (!cancelled) setProjectTasksError(e instanceof Error ? e.message : 'Could not load project tasks.')
+    }).finally(() => {
+      if (!cancelled) setProjectTasksLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [taskRefreshRequest])
 
   const startEdit = (p: ManagedProject) => {
     setEditing(p.id)
@@ -160,6 +225,7 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
   const memberPageCount = Math.max(1, Math.ceil(members.length / 10))
   const currentMemberPage = Math.min(memberPage, memberPageCount)
   const visibleMembers = members.slice((currentMemberPage - 1) * 10, currentMemberPage * 10)
+  const projectTaskPageCount = Math.max(1, Math.ceil(projectTaskTotal / 10))
 
   return <section className="panel progress-panel project-management-panel" style={{ marginTop:20 }}>
     <div className="panel-heading">
@@ -190,10 +256,20 @@ export default function ProjectManagement({ onChanged, createRequest }: { onChan
       <div className="modal-actions"><button type="button" className="button button-secondary" onClick={()=>setShowForm(false)}>Cancel</button><button className="button button-primary" disabled={saving}>{saving?'Saving…':editing?'Save changes':'Create project'}</button></div>
     </form>}
     {loading ? <p className="empty-state">Loading projects…</p> : projects.length === 0 ? <div className="empty-state"><FolderPlus size={20}/><strong>No projects yet</strong><span>{isAdmin?'Create your first project to start organizing tasks.':'No projects have been shared with you yet.'}</span></div> : showProjectDetails && activeProject ? <div className="project-detail-page">
-      <button className="button button-secondary project-detail-back" onClick={()=>{setShowProjectDetails(false);setSelected('');setMembers([])}}><ArrowLeft size={16}/> All projects</button>
+      <button className="button button-secondary project-detail-back" onClick={()=>{setShowProjectDetails(false);setSelected('');onSelectedProjectChange?.('');setMembers([])}}><ArrowLeft size={16}/> All projects</button>
       <div className="project-detail-card">
         <div className="project-detail-heading"><div><span className="project-detail-eyebrow"><FolderPlus size={14}/> PROJECT DETAILS</span><h2>{activeProject.name}</h2><p>{activeProject.description || 'No description provided.'}</p></div>{isAdmin && <div className="project-actions"><button className="icon-button" title="Edit project" aria-label="Edit project" onClick={()=>startEdit(activeProject)}><Pencil size={16}/></button>{activeProject.status!=='archived'&&<button className="icon-button" title="Archive project" aria-label="Archive project" onClick={()=>void archive(activeProject)}><Archive size={16}/></button>}<button className="icon-button" title="Delete project" aria-label="Delete project" onClick={()=>void removeProject(activeProject)}><Trash2 size={16}/></button></div>}</div>
         <div className="project-detail-meta"><span className={`project-status-pill project-status-${activeProject.status}`}><i/> {activeProject.status.replace('_',' ')}</span><span><strong>Due date</strong>{activeProject.dueDate || 'Not set'}</span><span><strong>Tasks</strong>{activeProject.completedTasks} of {activeProject.totalTasks} complete</span></div>
+        <section className="project-task-section">
+        <div className="project-task-heading"><div><h2>Project tasks <span>{projectTaskTotal}</span></h2><p>All active tasks in this project.</p></div><div className="project-task-heading-actions">{onCreateTask&&activeProject.status!=='archived'&&<button className="button button-primary" onClick={()=>onCreateTask(activeProject.name)}><Plus size={16}/> Create task</button>}<button className="icon-button" title="Refresh project tasks" aria-label="Refresh project tasks" onClick={()=>void changeProjectTaskPage(projectTaskPage)}><RefreshCw size={15}/></button></div></div>
+          {projectTasksError && <div role="alert" className="create-error">{projectTasksError}</div>}
+          {projectTasksLoading ? <p className="project-task-empty">Loading project tasks…</p> : projectTasks.length === 0 ? <p className="project-task-empty">No active tasks in this project yet.</p> : <div className="project-task-list">{projectTasks.map(task=><article className="project-task-row" key={task.id}>
+            <div className="project-task-main">{onOpenTask ? <button type="button" className="project-task-title-button" onClick={()=>onOpenTask(task.id)}>{task.title}</button> : <strong>{task.title}</strong>}<span><StatusBadge status={task.status as TaskStatus}/></span></div>
+            <div className="project-task-meta"><PriorityLabel priority={task.priority as Priority}/><span className="project-task-due"><CalendarDays size={14}/>{task.due}</span></div>
+            <p className="project-task-assignees">{task.assignees.length ? `Assigned to ${task.assignees.join(', ')}` : 'Unassigned'}</p>
+          </article>)}</div>}
+          {!projectTasksLoading && projectTaskTotal > 10 && <PaginationControls page={projectTaskPage} pageCount={projectTaskPageCount} onPageChange={page=>void changeProjectTaskPage(page)}/>}
+        </section>
         <div className="project-members-heading"><div><h2><Users size={17}/> Members <span>{members.length}</span></h2><p>Only active project members can be assigned its tasks.</p></div><button className="icon-button" title="Refresh members" aria-label="Refresh members" onClick={()=>void refresh(selected)}><RefreshCw size={15}/></button></div>
         {isAdmin && activeProject.status!=='archived' && <div className="project-add-member"><select aria-label="Employee to add" value={memberToAdd} onChange={e=>setMemberToAdd(e.target.value)}><option value="">Select active employee…</option>{employees.filter(e=>!members.some(m=>m.id===e.id)).map(e=><option key={e.id} value={e.id}>{e.full_name} · {e.email}</option>)}</select><button className="button button-primary button-small" disabled={!memberToAdd} onClick={()=>void addMember()}><Plus size={15}/> Add member</button></div>}
         <div className="project-member-list">{visibleMembers.map(m=><div className="project-member-row" key={m.id}><div className="assignee-avatar">{m.fullName.split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}</div><div className="project-main"><strong>{m.fullName}</strong><div className="project-meta"><span>{m.email}</span></div></div><span className={`member-account-status ${m.isActive?'member-account-active':''}`}>{m.isActive?'Active':'Inactive'}</span>{isAdmin&&activeProject.status!=='archived'&&<button className="icon-button" title={`Remove ${m.fullName}`} aria-label={`Remove ${m.fullName}`} onClick={()=>void removeMember(m.id)}><X size={15}/></button>}</div>)}{members.length===0&&<p className="project-empty-members">No members yet. Add employees to enable task assignment.</p>}</div>

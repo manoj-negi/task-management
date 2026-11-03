@@ -19,6 +19,15 @@ export type ProjectMember = {
   joinedAt: string
 }
 
+export type ProjectTask = {
+  id: string
+  title: string
+  priority: string
+  status: string
+  due: string
+  assignees: string[]
+}
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -39,6 +48,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const fetchProjects = () => request<ManagedProject[]>('/api/projects')
 export const fetchProjectMembers = (id: string) => request<ProjectMember[]>(`/api/projects/${encodeURIComponent(id)}/members`)
+export const fetchProjectTasks = (id: string, page = 1, pageSize = 10) => {
+  const offset = (page - 1) * pageSize
+  return request<{ tasks: ProjectTask[]; total: number; limit: number; offset: number }>(
+    `/api/projects/${encodeURIComponent(id)}/tasks?limit=${pageSize}&offset=${offset}`,
+  )
+}
 export const fetchActiveEmployees = async (): Promise<Array<{id:string; full_name:string; email:string; is_active:boolean; role:string}>> => {
   const data = await request<{employees:Array<{id:string; full_name:string; email:string; is_active:boolean; role:string}>}>('/api/admin/employees')
   return data.employees.filter((employee) => employee.is_active && employee.role === 'employee')

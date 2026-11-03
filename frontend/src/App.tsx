@@ -66,6 +66,8 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [employeeProgressPage, setEmployeeProgressPage] = useState(1)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [projectTaskCreation, setProjectTaskCreation] = useState(false)
+  const [projectTaskRefreshRequest, setProjectTaskRefreshRequest] = useState(0)
   const [projectCreateRequest, setProjectCreateRequest] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
   const [mobileSidebar, setMobileSidebar] = useState(false)
@@ -98,6 +100,30 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [editError, setEditError] = useState('')
   const [taskNotice, setTaskNotice] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+
+  const openCreateTaskForm = () => {
+    setProjectTaskCreation(false)
+    setCreateError('')
+    setShowCreate(true)
+  }
+
+  const openCreateTaskForProject = (projectName: string) => {
+    setNewTaskProject(projectName)
+    setNewTaskTitle('')
+    setNewTaskDescription('')
+    setNewTaskPriority('Medium')
+    setNewTaskDueDate('')
+    setSelectedAssignees([])
+    setProjectTaskCreation(true)
+    setCreateError('')
+    setShowCreate(true)
+  }
+
+  const closeCreateTaskForm = () => {
+    setShowCreate(false)
+    setProjectTaskCreation(false)
+  }
 
   const openTaskFilter = (filter: string) => {
     setSearch('')
@@ -287,8 +313,13 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
       setNewTaskDueDate('')
       setSelectedAssignees([])
       setShowCreate(false)
-      setActiveNav('Overview')
-      setActiveFilter('All tasks')
+      if (projectTaskCreation) {
+        setProjectTaskCreation(false)
+        setProjectTaskRefreshRequest(request => request + 1)
+      } else {
+        setActiveNav('Overview')
+        setActiveFilter('All tasks')
+      }
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Could not save task.')
     } finally {
@@ -383,7 +414,7 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
 <Sidebar
           navGroups={navGroupsWithCounts}
           activeNav={activeNav}
-          setActiveNav={label => { setSelectedTaskId(''); setActiveNav(label) }}
+          setActiveNav={label => { setSelectedTaskId(''); if (label !== 'Projects') setSelectedProjectId(''); setActiveNav(label) }}
           setActiveFilter={setActiveFilter}
           mobileSidebar={mobileSidebar}
           setMobileSidebar={setMobileSidebar}
@@ -433,18 +464,18 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
             <div className="welcome-actions">
               {activeNav === 'Overview' && !selectedTaskId && <>
                 {isAdmin && <button className="button button-primary" onClick={() => { setActiveNav('Projects'); setProjectCreateRequest((request) => request + 1) }}><FolderPlus size={16} /> Add project</button>}
-                <button className="button button-primary" onClick={() => setShowCreate(true)}><Plus size={17} /> Create task</button>
+                <button className="button button-primary" onClick={openCreateTaskForm}><Plus size={17} /> Create task</button>
               </>}
             </div>
           </section>
 
-          {selectedTaskId ? <EmployeeTaskDetails taskId={selectedTaskId} onBack={() => setSelectedTaskId('')} adminMode onOpenTask={setSelectedTaskId} onEdit={() => void openEditTask(selectedTaskId)} onDelete={async () => {
+          {selectedTaskId ? <EmployeeTaskDetails taskId={selectedTaskId} onBack={() => setSelectedTaskId('')} backLabel={activeNav === 'Projects' ? 'Back to project' : undefined} adminMode onOpenTask={setSelectedTaskId} onEdit={() => void openEditTask(selectedTaskId)} onDelete={async () => {
             const task = tasks.find(item => item.id === selectedTaskId)
             if (!task || !window.confirm(`Remove “${task.title}” from active task lists? Its comments, submissions, and audit history will be retained. Tasks with subtasks cannot be deleted.`)) return
             try { await deleteAdminTask(task.id); setSelectedTaskId(''); const data = await fetchDashboard(); setTasks(data.tasks); setEmployeeStats(data.employeeStats); setProjects(data.projects); setTaskNotice(`“${task.title}” was deleted.`) }
             catch (error) { setDashboardError(error instanceof Error ? error.message : 'Could not delete task.') }
           }} /> : activeNav === 'Team' ? <EmployeeManagement /> : activeNav === 'Approvals' ? <AdminApprovals /> : activeNav === 'Projects' ? (
-            <ProjectManagement createRequest={projectCreateRequest} onChanged={() => {
+            <ProjectManagement createRequest={projectCreateRequest} taskRefreshRequest={projectTaskRefreshRequest} initialSelectedProjectId={selectedProjectId} onSelectedProjectChange={setSelectedProjectId} onOpenTask={isAdmin ? setSelectedTaskId : undefined} onCreateTask={openCreateTaskForProject} onChanged={() => {
               fetchDashboard().then(data => { setTasks(data.tasks); setEmployeeStats(data.employeeStats); setProjects(data.projects); setDashboardError('') })
                 .catch(error => setDashboardError(error instanceof Error ? error.message : 'Could not refresh workspace data.'))
             }} />
@@ -539,7 +570,7 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
               <div><div className="task-heading-title"><h2>{activeNav === 'Tasks' ? (isAdmin ? 'All workspace tasks' : 'Your assigned tasks') : 'Recent tasks'}</h2>{activeNav === 'Tasks' && <span className="task-total-badge">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>}</div><p>{activeNav === 'Tasks' && isAdmin ? 'Edit task details, update assignees, or delete tasks.' : 'Stay on top of the work that matters most.'}</p></div>
               <div className="welcome-actions">
                 {activeNav === 'Overview' && <button className="button button-secondary button-small" onClick={() => { setSearch(''); setActiveFilter('All tasks'); setActiveNav('Tasks') }}>View all tasks <ArrowRight size={14} /></button>}
-                <button className="button button-primary tasks-add-button" onClick={() => { setCreateError(''); setShowCreate(true) }}><Plus size={17} /> Add task</button>
+                <button className="button button-primary tasks-add-button" onClick={openCreateTaskForm}><Plus size={17} /> Add task</button>
               </div>
             </div>
             <div className="task-toolbar">
@@ -610,12 +641,12 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
       )}
 
       {showCreate && (
-        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}>
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateTaskForm() }}>
           <form className="create-modal task-form-modal" onSubmit={createTask}>
-            <div className="modal-heading"><div><span className="modal-icon"><Plus size={19} /></span><div><h2>Create a task</h2><p>Add a new task to your workspace.</p></div></div><button type="button" className="icon-button" onClick={() => setShowCreate(false)} aria-label="Close dialog"><X size={19} /></button></div>
+            <div className="modal-heading"><div><span className="modal-icon"><Plus size={19} /></span><div><h2>{projectTaskCreation ? 'Create project task' : 'Create a task'}</h2><p>{projectTaskCreation ? `Add a task to ${newTaskProject}.` : 'Add a new task to your workspace.'}</p></div></div><button type="button" className="icon-button" onClick={closeCreateTaskForm} aria-label="Close dialog"><X size={19} /></button></div>
             <label className="form-label">Task name<input autoFocus required maxLength={250} placeholder="e.g. Prepare project documentation" value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} /></label>
             <label className="form-label">Description <span className="optional-label">(optional)</span><textarea rows={4} maxLength={10000} value={newTaskDescription} onChange={(event) => setNewTaskDescription(event.target.value)} placeholder="Explain what needs to be done, add instructions, acceptance criteria, or useful context…" /></label>
-            <label className="form-label">Project<select required value={newTaskProject} onChange={(event) => setNewTaskProject(event.target.value)}>{projects.map((project) => <option key={project.name} value={project.name}>{project.name}</option>)}</select></label>
+            {projectTaskCreation ? <div className="form-label">Project<div className="project-task-fixed-project"><FolderKanban size={16}/><span>{newTaskProject}</span></div></div> : <label className="form-label">Project<select required value={newTaskProject} onChange={(event) => setNewTaskProject(event.target.value)}>{projects.map((project) => <option key={project.name} value={project.name}>{project.name}</option>)}</select></label>}
             <label className="form-label">Priority<select value={newTaskPriority} onChange={(event)=> setNewTaskPriority(event.target.value as Priority)}><option>Low</option><option>Medium</option><option>High</option><option>Urgent</option></select></label>
             <label className="form-label">Assign to <span className="optional-label">(optional, select multiple)</span></label>
             <div className="assignee-picker" aria-label="Assign task to employees">
@@ -630,7 +661,7 @@ function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
             <label className="form-label">Due date <span className="optional-label">(optional)</span><input type="date" value={newTaskDueDate} onChange={(event) => setNewTaskDueDate(event.target.value)} /></label>
             {createError && <div role="alert" className="create-error">{createError}</div>}
             <div className="modal-note"><Clock3 size={15} /> Selected employees will be saved to this task in the database.</div>
-            <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setShowCreate(false)}>Cancel</button><button type="submit" disabled={creatingTask || projects.length === 0} className="button button-primary"><Plus size={16} /> {creatingTask ? 'Saving…' : 'Create task'}</button></div>
+            <div className="modal-actions"><button type="button" className="button button-secondary" onClick={closeCreateTaskForm}>Cancel</button><button type="submit" disabled={creatingTask || projects.length === 0} className="button button-primary"><Plus size={16} /> {creatingTask ? 'Saving…' : 'Create task'}</button></div>
           </form>
         </div>
       )}

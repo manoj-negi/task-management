@@ -33,6 +33,15 @@ type projectMemberRecord struct {
 	JoinedAt string `json:"joinedAt"`
 }
 
+type projectTaskRecord struct {
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Priority  string   `json:"priority"`
+	Status    string   `json:"status"`
+	Due       string   `json:"due"`
+	Assignees []string `json:"assignees"`
+}
+
 func Projects(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := auth.ClaimsFromContext(r.Context())
@@ -59,6 +68,10 @@ func Projects(db *sql.DB) http.Handler {
 		}
 
 		parts := strings.Split(path, "/")
+		if len(parts) == 2 && parts[1] == "tasks" && r.Method == http.MethodGet {
+			listProjectTasks(db, w, r, parts[0], claims.UserID, claims.Role)
+			return
+		}
 		if len(parts) == 2 && parts[1] == "members" && r.Method == http.MethodGet {
 			listProjectMembers(db, w, r, parts[0], claims.UserID, claims.Role)
 			return
@@ -109,6 +122,59 @@ func Projects(db *sql.DB) http.Handler {
 		}
 		writeTaskJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint not found"})
 	})
+}
+
+func listProjectTasks(db *sql.DB, w http.ResponseWriter, r *http.Request, projectID, userID, role string) {
+	var allowed bool
+	err := db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM projects p WHERE p.id=$1::uuid AND ($2='super_admin' OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3::uuid AND pm.removed_at IS NULL)))`, projectID, role, userID).Scan(&allowed)
+	if err != nil || !allowed {
+		writeTaskJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+		return
+	}
+	var total int
+	if err := db.QueryRowContext(r.Context(), `SELECT COUNT(*)::int FROM tasks WHERE project_id=$1::uuid AND deleted_at IS NULL`, projectID).Scan(&total); err != nil {
+		writeTaskJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not count project tasks"})
+		return
+	}
+	limit, offset := pagination(r)
+	rows, err := db.QueryContext(r.Context(), `
+SELECT t.id::text,t.title,t.priority::text,t.status::text,
+       COALESCE(to_char(t.due_at,'Mon DD'),'No due date'),
+       COALESCE(json_agg(DISTINCT u.full_name) FILTER (WHERE u.id IS NOT NULL),'[]'::json)::text
+FROM tasks t
+LEFT JOIN task_assignees ta ON ta.task_id=t.id
+LEFT JOIN users u ON u.id=ta.user_id AND u.is_active=TRUE
+WHERE t.project_id=$1::uuid AND t.deleted_at IS NULL
+GROUP BY t.id
+ORDER BY t.created_at DESC,t.id DESC
+LIMIT $2 OFFSET $3`, projectID, limit, offset)
+	if err != nil {
+		writeTaskJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not load project tasks"})
+		return
+	}
+	defer rows.Close()
+	tasks := make([]projectTaskRecord, 0)
+	for rows.Next() {
+		var task projectTaskRecord
+		var assigneesJSON string
+		if err := rows.Scan(&task.ID, &task.Title, &task.Priority, &task.Status, &task.Due, &assigneesJSON); err != nil {
+			writeTaskJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read project tasks"})
+			return
+		}
+		task.Assignees = []string{}
+		if err := json.Unmarshal([]byte(assigneesJSON), &task.Assignees); err != nil {
+			writeTaskJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read project task assignees"})
+			return
+		}
+		task.Status = displayStatus(task.Status)
+		task.Priority = displayPriority(task.Priority)
+		tasks = append(tasks, task)
+	}
+	if err := rows.Err(); err != nil {
+		writeTaskJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read project tasks"})
+		return
+	}
+	writeTaskJSON(w, http.StatusOK, map[string]any{"tasks": tasks, "total": total, "limit": limit, "offset": offset})
 }
 
 func listProjects(db *sql.DB, w http.ResponseWriter, r *http.Request, userID, role string) {

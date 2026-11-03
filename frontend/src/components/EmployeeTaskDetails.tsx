@@ -15,7 +15,7 @@ const readableAction = (action: string) => ({ task_created: "created this task",
 const formatDate = (value: string) => value ? new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "Not set"
 const formatSize = (size: number) => size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`
 
-export default function EmployeeTaskDetails({ taskId, onBack, adminMode = false, onEdit, onDelete, onOpenTask }: { taskId: string; onBack: () => void; adminMode?: boolean; onEdit?: () => void; onDelete?: () => void; onOpenTask?: (taskId: string) => void }) {
+export default function EmployeeTaskDetails({ taskId, onBack, backLabel, adminMode = false, onEdit, onDelete, onOpenTask }: { taskId: string; onBack: () => void; backLabel?: string; adminMode?: boolean; onEdit?: () => void; onDelete?: () => void; onOpenTask?: (taskId: string) => void }) {
   const [data, setData] = useState<TaskDetailsResponse | null>(null)
   const [comments, setComments] = useState<TaskComment[]>([])
   const [activity, setActivity] = useState<TaskTimelineEvent[]>([])
@@ -171,12 +171,12 @@ export default function EmployeeTaskDetails({ taskId, onBack, adminMode = false,
     finally { setBusy("") }
   }
 
-  if (loading && !data) return <section className="panel employee-detail-loading"><LoaderCircle size={24} className="employee-spinner"/><strong>Loading task details…</strong><button className="button button-secondary button-small" onClick={onBack}><ArrowLeft size={15}/> Back to tasks</button></section>
-  if (!data || !task) return <section className="panel employee-detail-loading"><CircleAlert size={26}/><strong>Task details unavailable</strong><p>{error || "This task could not be found or you no longer have access."}</p><div><button className="button button-secondary" onClick={onBack}><ArrowLeft size={15}/> Back to tasks</button><button className="button button-primary" onClick={() => void refresh()}>Try again</button></div></section>
+  if (loading && !data) return <section className="panel employee-detail-loading"><LoaderCircle size={24} className="employee-spinner"/><strong>Loading task details…</strong><button className="button button-secondary button-small" onClick={onBack}><ArrowLeft size={15}/> {backLabel || "Back to tasks"}</button></section>
+  if (!data || !task) return <section className="panel employee-detail-loading"><CircleAlert size={26}/><strong>Task details unavailable</strong><p>{error || "This task could not be found or you no longer have access."}</p><div><button className="button button-secondary" onClick={onBack}><ArrowLeft size={15}/> {backLabel || "Back to tasks"}</button><button className="button button-primary" onClick={() => void refresh()}>Try again</button></div></section>
 
   const tabs: Tab[] = adminMode ? ["Overview", "Subtasks", "Comments", "Submissions", "Activity"] : ["Overview", "Subtasks", "Comments", "Activity"]
   return <section className="employee-task-details">
-    <button className="employee-back-button" onClick={onBack}><ArrowLeft size={16}/> {adminMode ? "Back to tasks" : "Back to my tasks"}</button>
+    <button className="employee-back-button" onClick={onBack}><ArrowLeft size={16}/> {backLabel || (adminMode ? "Back to tasks" : "Back to my tasks")}</button>
     {error && <div className="employee-alert employee-alert-error" role="alert">{error}<button className="button button-secondary button-small" onClick={() => void refresh()}>Retry</button></div>}
     {notice && <div className="employee-alert employee-alert-success" role="status"><CheckCircle2 size={17}/>{notice}</div>}
 
